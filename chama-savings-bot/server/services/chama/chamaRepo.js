@@ -43,6 +43,7 @@ async function createChama({ chatId, name, monthlyAmountCents, cycleDay, treasur
 }
 
 async function findByChatId(chatId) {
+  //a plain SQL query results taht coming directly from PostgresSQL through the pg library
   const { rows } = await query('SELECT * FROM chamas WHERE chat_id = $1', [chatId]);
   return rows[0];
 }

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query, pool } = require('../config/db');
 const mpesaService = require('../services/mpesa/daraja.service');
+const telegramService = require('../services/telegram.service');
 
 router.post('/', express.json(), async (req, res) => {
   const payload = req.body;
@@ -58,6 +59,13 @@ router.post('/', express.json(), async (req, res) => {
                LIMIT 1
              )`,
             [mpesaReceiptNumber, String(transactionDate), member.chama_id, member.user_id, amountCents]
+          );
+
+          // Notify the member their payment succeeded
+          const amountKsh = (amountCents / 100).toLocaleString();
+          await telegramService.sendMessage(
+            member.user_id,
+            `✅ Payment confirmed!\nAmount: KSh ${amountKsh}\nReceipt: ${mpesaReceiptNumber}\n\nThank you for contributing!`
           );
         }
       } else {

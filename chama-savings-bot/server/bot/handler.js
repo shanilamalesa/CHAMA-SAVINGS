@@ -1,5 +1,7 @@
+
 const telegramService = require('../services/telegram.service');
 const chamaService = require('../services/chama/chamaService');
+const { query } = require('../config/db');
 
 // Import commands
 const setupCmd = require('../services/chama/commands/setup');
@@ -12,6 +14,7 @@ const contributeCmd = require('../services/chama/commands/contribute');
 // ============ MESSAGE HANDLER ============
 
 async function handleMessage(msg) {
+   console.log("RAW MESSAGE RECEIVED:", msg.chat.type, msg.chat.id, msg.text);
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   const text = msg.text || '';
@@ -49,9 +52,41 @@ async function handleMessage(msg) {
         return;
       } catch (err) {
         console.error('Onboarding completion failed:', err.message);
-        await telegramService.sendMessage(userId, '❌ Registration failed. Please try again.');
+        await telegramService.sendMessage(userId, ' Registration failed. Please try again.');
         return;
       }
+    }
+
+    // if (!text.startsWith('/')) {
+    //   return;
+    // }
+
+    // Check if this is a custom contribution amount reply
+    const cSession = await telegramService.getSession(userId);
+    if (cSession && cSession.state === 'awaiting_custom_amount' && msg.chat.type === 'private') {
+      const amountKsh = parseInt(text, 10);
+      if (isNaN(amountKsh) || amountKsh <= 0) {
+        await telegramService.sendMessage(chatId, 'Please enter a valid amount greater than 0.');
+        return;
+      }
+      const amountCents = amountKsh * 100;
+      const cycleId = cSession.context.cycleId;
+      await telegramService.clearSession(userId);
+
+      const statusMsg = await telegramService.sendMessage(chatId, ' Initiating M-Pesa prompt...');
+
+      try {
+        const result = await chamaService.initiateContribution({ userId, cycleId, amountCents });
+        await telegramService.editMessage(chatId, statusMsg.message_id,
+          `📱 Check your phone for the M-Pesa prompt.\n` +
+          `Reference: ${result.contributionId.slice(0, 8)}\n` +
+          `Enter your PIN to complete.`
+        );
+      } catch (err) {
+        console.error('Custom contribution failed:', err.message);
+        await telegramService.editMessage(chatId, statusMsg.message_id, ' Could not start payment. Please try again.');
+      }
+      return;
     }
 
     if (!text.startsWith('/')) {
@@ -222,11 +257,13 @@ async function handleHelp(chatId) {
 
 async function handleDashboard(bot, message) {
   const chatId = message.chat.id;
+  //from external api
   const userId = message.from.id;
+  console.log("DASHBOARD:", { chatId, userId });
 
   try {
     const chama = await chamaService.findByChatId(chatId);
-    if (!chama || chama.treasurer_user_id !== userId) {
+    if (!chama || String(chama.treasurer_user_id) !== String(userId)) {
       await telegramService.sendMessage(
         chatId,
         '⛔ Only the treasurer can access the dashboard.'
@@ -234,9 +271,19 @@ async function handleDashboard(bot, message) {
       return;
     }
 
+    const crypto = require('crypto');
+    const token = crypto.randomUUID();
+
+    await query(
+      `INSERT INTO dashboard_sessions (token, user_id, created_at, expires_at)
+       VALUES ($1, $2, NOW(), NOW() + INTERVAL '1 hour')`,
+      [token, userId]
+    );
+
+    const url = `${process.env.PUBLIC_URL}/treasurer/login?token=${token}`;
     await telegramService.sendMessage(
       userId,
-      '🔗 Dashboard feature coming soon!'
+      `🔗 Open your dashboard: ${url}\n(link expires in 1 hour)`
     );
   } catch (err) {
     console.error('Dashboard handler error:', err);

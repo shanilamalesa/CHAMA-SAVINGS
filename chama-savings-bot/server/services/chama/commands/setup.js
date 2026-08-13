@@ -37,16 +37,16 @@ module.exports = async function setup(bot, message, args) {
       chatId,
       `⚙️ Usage: /setup <name> <monthly_amount_ksh> <cycle_day>
 
-Example:
-/setup "Kilimani Chama" 1000 1
+      Example:
+      /setup "Kilimani Chama" 1000 1
 
-Where:
-- name: Group name (use quotes if multiple words)
-- monthly_amount_ksh: How much each member contributes (e.g., 1000)
-- cycle_day: Day of month cycle closes (1-28)`
-    );
-    return;
-  }
+      Where:
+      - name: Group name (use quotes if multiple words)
+      - monthly_amount_ksh: How much each member contributes (e.g., 1000)
+      - cycle_day: Day of month cycle closes (1-28)`
+          );
+          return;
+        }
 
   const monthlyKsh = parseInt(args[args.length - 2], 10);
   const cycleDay = parseInt(args[args.length - 1], 10);

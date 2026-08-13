@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const next = require("next");
+const { startCronJobs } = require("./cron");
 
 // Services
 const telegramService = require("./services/telegram.service");
@@ -12,7 +13,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(express.json());
+// app.use(express.json());
 app.use(express.static(path.join(__dirname, "../public")));
 
 // Health check
@@ -23,8 +24,39 @@ app.get("/health", (req, res) => {
   });
 });
 
+app.get("/debug/run-cycles", async (req, res) => {
+  const { runJob } = require("./cron");
+  const jobs = require("./cron/registry");
+  const job = jobs.find(j => j.name === "chama-cycles");
+  await runJob(job);
+  res.json({ ok: true });
+});
+
+app.get("/debug/run-reminders", async (req, res) => {
+  const { runJob } = require("./cron");
+  const jobs = require("./cron/registry");
+  const job = jobs.find(j => j.name === "chama-reminders");
+  await runJob(job);
+  res.json({ ok: true });
+});
+
+app.get("/debug/test-pdf", async (req, res) => {
+  const { generateMonthlyPdf } = require("./cron/pdf/monthlyReport");
+  const chamaId = -5335853740; // TestGroup2
+  const cycleId = 2; // the already-closed cycle
+  const filePath = await generateMonthlyPdf(chamaId, cycleId);
+
+  const telegramService = require("./services/telegram.service");
+  const bot = telegramService.getBot();
+  await bot.sendDocument(8795295014, filePath, {}, { // Shanila's user_id, as a stand-in
+    filename: "test-report.pdf",
+  });
+
+  res.json({ ok: true, filePath });
+});
+
 // Telegram webhook (optional)
-app.post("/webhook/telegram", (req, res) => {
+app.post("/webhook/telegram", express.json(), (req, res) => {
   console.log("Webhook update received:", req.body);
   res.json({ ok: true });
 });
@@ -59,6 +91,9 @@ async function start() {
 
     // Register handlers AFTER bot initialization
     botHandler.setupHandlers();
+
+    startCronJobs();
+    console.log("✓ Cron jobs started");
 
     // Next.js routes
     app.all("*", (req, res) => nextHandler(req, res));
