@@ -1,66 +1,40 @@
 
 
-// // server/workers/notifications.worker.js
-// const { Worker } = require("bullmq");
-
-// const connection = {
-//   host: process.env.REDIS_HOST || "localhost",
-//   port: parseInt(process.env.REDIS_PORT || "6379", 10),
-// };
-
-// const worker = new Worker("notifications", async (job) => {
-//   console.log(`Processing job ${job.id} of type ${job.name} (priority ${job.opts.priority || "normal"})`);
-//   console.log("Job data:", job.data);
-
-// //   if (job.name === "sendWhatsApp") {
-// //     // Simulated permanent failure: a phone number that's obviously invalid
-// //     if (!job.data.to || job.data.to.length < 8) {
-// //       throw new Error(`Permanent failure: invalid phone number "${job.data.to}"`);
-// //     }
-// //     console.log(`(Simulated) Sending WhatsApp to ${job.data.to}: "${job.data.message}"`);
-// //   } else {
-// //     throw new Error(`Unknown job name: ${job.name}`);
-// //   }
-// // }, { connection, concurrency: 5 });
-
-// if (job.name === "sendWhatsApp") {
-//     if (!job.data.to || job.data.to.length < 8) {
-//       throw new Error(`Permanent failure: invalid phone number "${job.data.to}"`);
-//     }
-//     await new Promise((r) => setTimeout(r, 500)); // simulate network delay
-//     console.log(`(Simulated) Sending WhatsApp to ${job.data.to}: "${job.data.message}"`);
-//   }else {
-//        throw new Error(`Unknown job name: ${job.name}`);
-//      }
-//     }, { connection, concurrency: 1 });
- 
-
-// worker.on("completed", (job) => {
-//   console.log(`✓ Job ${job.id} completed`);
-// });
-
-// worker.on("failed", (job, err) => {
-//   console.error(`✗ Job ${job.id} failed (attempt ${job.attemptsMade}/${job.opts.attempts}):`, err.message);
-// });
-
-// console.log("Notifications worker running (concurrency: 1)");
-
-
-
-
-
 // workers/notifications.worker.js
-const { Worker, UnrecoverableError } = require("bullmq");
+const { Worker, UnrecoverableError, DelayedError } = require("bullmq");
 const { deadLetterQueue } = require("../queues");
+const { checkGroupRateLimit, getWindowTtl, releaseSlot } = require("../services/rateLimit");
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
   port: parseInt(process.env.REDIS_PORT || "6379", 10),
 };
 
-const worker = new Worker("notifications", async (job) => {
+const worker = new Worker("notifications", async (job, token) => {
+  console.log(`[${new Date().toISOString()}] processing ${job.id}`);
   console.log(`Processing job ${job.id} of type ${job.name} (priority ${job.opts.priority || "normal"})`);
   console.log("Job data:", job.data);
+
+  if (job.name === "test") {
+  console.log(`  test job ${job.data.n} — no-op`);
+  return { ok: true };
+}
+
+  if (job.name === "telegramSend") {
+    const allowed = await checkGroupRateLimit(job.data.chatId);
+
+    if (!allowed) {
+      await releaseSlot(job.data.chatId);
+      const ttl = await getWindowTtl(job.data.chatId);
+      console.log(` chat ${job.data.chatId} full - job ${job.id} delayed ${ttl}s`);
+      // throw new Error("Group rate limited");
+
+      await job.moveToDelayed(Date.now() + ttl * 1000 + 500, token);
+      throw new DelayedError();
+    }
+    console.log(` ->(Simulated) telegram to ${job.data.chatId}: ${job.data.text}`);
+    return { ok: true};
+  }
 
   if (job.name !== "sendWhatsApp") {
     throw new Error(`Unknown job name: ${job.name}`);
@@ -84,14 +58,35 @@ const worker = new Worker("notifications", async (job) => {
 
   await new Promise((r) => setTimeout(r, 500));
   console.log(`(Simulated) Sending WhatsApp to ${job.data.to}: "${job.data.message}"`);
-}, { connection, concurrency: 1 });
+}, { connection,
+      limiter: {
+        max: 5, //deliberately low
+        duration: 1000,
+      },
+      concurrency: 1 });
 
 worker.on("completed", (job) => {
   console.log(`✓ Job ${job.id} completed`);
 });
 
-worker.on("failed", (job, err) => {
+worker.on("failed", async (job, err) => {
   console.error(`✗ Job ${job.id} failed (attempt ${job.attemptsMade}/${job.opts.attempts}):`, err.message);
+
+  const maxAttempts = job.opts.attempts ?? 1;
+
+  if (job.attemptsMade >= maxAttempts) {
+    console.error(`  ☠ Job ${job.id} exhausted retries — moving to dead-letter`);
+
+    await deadLetterQueue.add("exhaustedRetries", {
+      originalQueue: "notifications",
+      originalJobId: job.id,
+      jobName: job.name,
+      data: job.data,
+      error: err.message,
+      attemptsMade: job.attemptsMade,
+      failedAt: new Date().toISOString(),
+    });
+  }
 });
 
 console.log("Notifications worker running (concurrency: 1)");
