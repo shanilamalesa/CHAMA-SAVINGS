@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.env
+.env.*
+*.log
+reports
+npm-debug.log
+test-*.js
