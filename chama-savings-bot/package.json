@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon server/index.js",
     "build": "next build",
-    "start": "next start",
+    "start": "concurrently \"npm start --prefix api\" \"npm start --prefix notification-service\"",
     "lint": "eslint .",
     "db:migrate": "node server/db/migrate.js"
   },
@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.14",
+    "concurrently": "^10.0.5",
     "eslint": "^8.40.0",
     "nodemon": "^3.1.14",
     "postcss": "^8.4.24",

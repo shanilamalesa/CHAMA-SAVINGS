@@ -25,6 +25,13 @@ const worker = new Worker(
     );
     console.log("Job data:", job.data);
 
+    if (job.name === "slowJob") {
+      console.log(`  slow job starting — will take 8 seconds`);
+      await new Promise((r) => setTimeout(r, 8000));
+      console.log(`  slow job finished`);
+      return { ok: true };
+    }
+
     // --- no-op job type, used for exercising queue mechanics ---------------
     if (job.name === "test") {
       console.log(`  test job ${job.data.n} — no-op`);
@@ -77,6 +84,9 @@ const worker = new Worker(
       duration: 1000,
     },
     concurrency: 1,
+    stalledInterval: 10000,  // sweep for abandoned jobs every 10s
+    maxStalledCount: 3,      // after 3 stalls, give up on the job
+
   }
 );
 
@@ -122,5 +132,29 @@ worker.on("failed", async (job, err) => {
     }
   }
 });
+
+let shuttingDown = false;
+
+async function gracefulShutdown(signal) {
+  if (shuttingDown) {
+    console.log("  Already shutting down — press Ctrl+C again to force.");
+    return;
+  }
+  shuttingDown = true;
+
+  console.log(`\n${signal} received. Draining in-flight jobs...`);
+  const started = Date.now();
+
+  await Promise.race([
+    worker.close(),
+    new Promise((r) => setTimeout(r, 30000)), // hard cap
+  ]);
+
+  console.log(`Worker shut down cleanly after ${Date.now() - started}ms`);
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 console.log("Notifications worker running (concurrency: 1)");
