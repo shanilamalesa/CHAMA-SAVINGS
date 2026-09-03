@@ -19,7 +19,7 @@ const connection = {
 const worker = new Worker(
   "notifications",
   async (job, token) => {
-    console.log(`[${new Date().toISOString()}] processing ${job.id}`);
+    console.log(`[notifications][${job.data.requestId}] processing ${job.id} (${job.name})`);
     console.log(
       `Processing job ${job.id} of type ${job.name} (priority ${job.opts.priority || "normal"})`
     );
