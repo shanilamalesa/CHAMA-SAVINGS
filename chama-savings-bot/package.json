@@ -19,6 +19,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@mctaba/contracts": "file:contracts",
     "axios": "^1.4.0",
     "bullmq": "^6.1.2",
     "dotenv": "^16.6.1",

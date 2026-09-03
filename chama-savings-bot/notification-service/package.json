@@ -8,13 +8,14 @@
     "db:migrate": "node db/migrate.js"
   },
   "dependencies": {
-    "bullmq": "^6.1.2",
-    "express": "^4.22.2",
-    "pg": "^8.10.0",
+    "@mctaba/contracts": "file:../contracts",
     "axios": "^1.4.0",
+    "bullmq": "^6.1.2",
     "dotenv": "^16.6.1",
+    "express": "^4.22.2",
     "ioredis": "^6.0.0",
-    "node-telegram-bot-api": "^0.61.0"
+    "node-telegram-bot-api": "^0.61.0",
+    "pg": "^8.10.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

@@ -1,6 +1,9 @@
 // workers/notifications.worker.js
 const { Worker, UnrecoverableError, DelayedError } = require("bullmq");
 const { deadLetterQueue } = require("../queues");
+const { jobs: jobsContracts } = require("@mctaba/contracts");
+
+
 const {
   checkGroupRateLimit,
   getWindowTtl,
@@ -19,6 +22,7 @@ const connection = {
 const worker = new Worker(
   "notifications",
   async (job, token) => {
+    jobsContracts.validateJob(job.name, job.data);
     console.log(`[${new Date().toISOString()}] processing ${job.id}`);
     console.log(
       `Processing job ${job.id} of type ${job.name} (priority ${job.opts.priority || "normal"})`
