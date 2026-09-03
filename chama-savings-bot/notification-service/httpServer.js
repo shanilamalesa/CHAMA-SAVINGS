@@ -1,21 +1,40 @@
 const express = require("express");
 const { query } = require("./config/db");
+const IORedis = require("ioredis");
 
 const app = express();
 app.use(express.json());
 
-app.get("/health", (req, res) => {
-  res.json({ ok: true, service: "notifications" });
-});
+app.get("/health", async (req, res) => {
+  const checks = {};
 
-app.use((req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (token !== process.env.INTERNAL_SERVICE_TOKEN) {
-    return res.status(401).json({ error: "Unauthorized" });
+  const redis = new IORedis({
+    host: process.env.REDIS_HOST || "localhost",
+    port: parseInt(process.env.REDIS_PORT || "6379", 10),
+    lazyConnect: true,
+    maxRetriesPerRequest: 1,
+  });
+
+  try {
+    await redis.connect();
+    await redis.ping();
+    checks.redis = "ok";
+  } catch {
+    checks.redis = "fail";
+  } finally {
+    redis.disconnect();
   }
-  next();
-});
 
+  try {
+    await query("SELECT 1");
+    checks.postgres = "ok";
+  } catch {
+    checks.postgres = "fail";
+  }
+
+  const allOk = Object.values(checks).every((v) => v === "ok");
+  res.status(allOk ? 200 : 503).json({ service: "notifications", checks });
+});
 app.get("/delivery/:attemptId", async (req, res) => {
   const { rows } = await query(
     "SELECT id, user_id, channel, status, error, created_at FROM notification_attempts WHERE id = $1",
