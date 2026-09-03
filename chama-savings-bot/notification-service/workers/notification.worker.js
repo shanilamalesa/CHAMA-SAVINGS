@@ -5,7 +5,7 @@ const {
   checkGroupRateLimit,
   getWindowTtl,
   releaseSlot,
-} = require("../services/rateLimit");
+} = require("../senders/rateLimit");
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",

@@ -1,6 +1,4 @@
-require('dontev').config();
-
-require('./workers/notification.worker.js');
-require('./workers/whatsapp.worker.js');
-
-console.log('Notification Service is running and listening for queue jobs ...');
+require("dotenv").config();
+require("./httpServer");
+require("./workers/notification.worker");
+// require("./workers/whatsapp.worker");  // no sender yet — see ARCHITECTURE.md
