@@ -1,6 +1,6 @@
 const SendWhatsAppJob = {
   jobName: "sendWhatsApp",
-  payload: { to: "string", message: "string" },
+  payload: { to: "string", message: "string", requestId: "string?" },
 };
 
 const TelegramSendJob = {

@@ -1,4 +1,4 @@
-// workers/notifications.worker.js
+
 const { Worker, UnrecoverableError, DelayedError } = require("bullmq");
 const { deadLetterQueue } = require("../queues");
 const { jobs: jobsContracts } = require("@mctaba/contracts");
@@ -8,7 +8,7 @@ const {
   checkGroupRateLimit,
   getWindowTtl,
   releaseSlot,
-} = require("../services/rateLimit");
+} = require("../senders/rateLimit");
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
@@ -23,7 +23,7 @@ const worker = new Worker(
   "notifications",
   async (job, token) => {
     jobsContracts.validateJob(job.name, job.data);
-    console.log(`[${new Date().toISOString()}] processing ${job.id}`);
+    console.log(`[notifications][${job.data.requestId}] processing ${job.id} (${job.name})`);
     console.log(
       `Processing job ${job.id} of type ${job.name} (priority ${job.opts.priority || "normal"})`
     );

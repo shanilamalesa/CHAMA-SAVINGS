@@ -16,6 +16,9 @@ const PORT = process.env.PORT || 3000;
 // app.use(express.json());
 app.use(express.static(path.join(__dirname, "../public")));
 
+app.use(require("./middleware/requestId"));
+
+
 // Health check
 app.get("/health", (req, res) => {
   res.json({
@@ -23,6 +26,7 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
 
 app.get("/debug/run-cycles", async (req, res) => {
   const { runJob } = require("./cron");
